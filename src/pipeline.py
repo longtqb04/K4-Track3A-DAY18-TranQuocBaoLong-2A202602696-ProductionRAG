@@ -54,7 +54,7 @@ def build_pipeline():
 
     # Step 4: Reranker (M3)
     t0 = time.time()
-    print("\n[4/4] Loading reranker...", flush=True)
+    print("\n[4/4] Preparing reranker (model loads on first query)...", flush=True)
     reranker = CrossEncoderReranker()
     print(f"  ✓ Reranker ready ({time.time()-t0:.1f}s)", flush=True)
 

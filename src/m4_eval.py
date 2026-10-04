@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from torch import zeros
-
 """Module 4: RAGAS Evaluation — 4 metrics + failure analysis."""
 
 import os, sys, json
@@ -36,13 +34,23 @@ def load_test_set(path: str = TEST_SET_PATH) -> list[dict]:
 def evaluate_ragas(questions: list[str], answers: list[str],
                    contexts: list[list[str]], ground_truths: list[str]) -> dict:
     """Run RAGAS evaluation."""
-    # TODO: Implement RAGAS evaluation
-    # 1. Wrap trong try/except — RAGAS cần OPENAI_API_KEY và Python 3.11+.
+    metric_names = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
+    if not (len(questions) == len(answers) == len(contexts) == len(ground_truths)):
+        raise ValueError("questions, answers, contexts, and ground_truths must have equal lengths")
+    if not questions:
+        return {**dict.fromkeys(metric_names, 0.0), "per_question": []}
+
+    def empty_result(error: Exception) -> dict:
+        print(f"  ⚠️  RAGAS evaluation failed: {error}")
+        rows = [EvalResult(q, a, c, gt, 0.0, 0.0, 0.0, 0.0)
+                for q, a, c, gt in zip(questions, answers, contexts, ground_truths)]
+        return {**dict.fromkeys(metric_names, 0.0), "per_question": rows}
+
     try:
         from ragas import evaluate
         from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
         from datasets import Dataset
-    
+
         dataset = Dataset.from_dict({
             "question": questions, "answer": answers,
             "contexts": contexts, "ground_truth": ground_truths,
@@ -57,15 +65,19 @@ def evaluate_ragas(questions: list[str], answers: list[str],
             context_precision=float(row.get("context_precision", 0.0)),
             context_recall=float(row.get("context_recall", 0.0)))
             for _, row in df.iterrows()]
-        return {"faithfulness": zeros(1), "answer_relevancy": zeros(1), "context_precision": zeros(1), "context_recall": zeros(1), "per_question": per_question}
+        aggregates = {}
+        for name in metric_names:
+            values = [getattr(row, name) for row in per_question]
+            finite_values = [v for v in values if v == v and abs(v) != float("inf")]
+            aggregates[name] = sum(finite_values) / len(finite_values) if finite_values else 0.0
+        return {**aggregates, "per_question": per_question}
     except Exception as e:
-        print(f"  ⚠️  RAGAS evaluation failed: {e}")
-        return zeros
+        return empty_result(e)
 
 
 def failure_analysis(eval_results: list[EvalResult], bottom_n: int = 10) -> list[dict]:
     """Analyze bottom-N worst questions using Diagnostic Tree."""
-    # TODO: Implement failure analysis
+
     diagnostic_tree = {
            "faithfulness": ("LLM hallucinating", "Tighten prompt, lower temperature"),
            "context_recall": ("Missing relevant chunks", "Improve chunking or add BM25"),

@@ -68,7 +68,15 @@ class DenseSearch:
     def _get_encoder(self):
         if self._encoder is None:
             from sentence_transformers import SentenceTransformer
-            self._encoder = SentenceTransformer(EMBEDDING_MODEL)
+            try:
+                self._encoder = SentenceTransformer(EMBEDDING_MODEL)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Could not load embedding model {EMBEDDING_MODEL!r}. "
+                    "Reinstall the compatible dependencies from requirements.txt "
+                    "(sentence-transformers<5 and transformers<5); if it still fails, "
+                    "remove the cached model so Hugging Face can download its tokenizer again."
+                ) from e
         return self._encoder
 
     def index(self, chunks: list[dict], collection: str = COLLECTION_NAME) -> None:
@@ -76,7 +84,8 @@ class DenseSearch:
         from qdrant_client.models import Distance, VectorParams, PointStruct
         self.client.recreate_collection(collection, vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE))
         texts = [c["text"] for c in chunks]
-        vectors = self._get_encoder().encode(texts, show_progress_bar=True)
+        # Keep activation memory bounded on machines with limited RAM/VRAM.
+        vectors = self._get_encoder().encode(texts, batch_size=8, show_progress_bar=True)
         points = [PointStruct(id=i, vector=v.tolist(), payload={**c.get("metadata", {}), "text": c["text"]}) for i, (v, c) in enumerate(zip(vectors, chunks))]
         self.client.upsert(collection, points)
 

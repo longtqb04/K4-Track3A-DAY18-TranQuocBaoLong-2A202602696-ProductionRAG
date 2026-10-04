@@ -23,7 +23,7 @@ class RerankResult:
 
 
 class CrossEncoderReranker:
-    def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3"):
+    def __init__(self, model_name: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"):
         self.model_name = model_name
         self._model = None
 
@@ -35,12 +35,11 @@ class CrossEncoderReranker:
 
     def rerank(self, query: str, documents: list[dict], top_k: int = RERANK_TOP_K) -> list[RerankResult]:
         """Rerank documents: top-20 → top-k."""
-        # TODO: Implement reranking
         if not documents:
             return []
         model = self._load_model()
         pairs = [(query, doc["text"]) for doc in documents]
-        scores = model.predict(pairs)
+        scores = model.predict(pairs, batch_size=8, show_progress_bar=False)
         if isinstance(scores, (int, float)): 
             scores = [scores]
         scored = sorted(zip(scores, documents), key=lambda x: x[0], reverse=True)
@@ -53,7 +52,6 @@ class FlashrankReranker:
         self._model = None
 
     def rerank(self, query: str, documents: list[dict], top_k: int = RERANK_TOP_K) -> list[RerankResult]:
-        # TODO (optional)
         from flashrank import Ranker, RerankRequest
         model = Ranker()
         passages = [{"text": d["text"]} for d in documents]

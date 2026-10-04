@@ -32,6 +32,17 @@ def main():
     from naive_baseline import main as run_baseline
     run_baseline()
 
+    # Baseline loads the dense embedding model. Release its unused tensors and
+    # cached CUDA allocations before loading the production index/model again.
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
+
     # Step 2: Production Pipeline
     print("\n📌 STEP 2: Running Production Pipeline...")
     print("-" * 40)
